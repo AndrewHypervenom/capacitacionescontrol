@@ -1,10 +1,30 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, type MutationCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { isAdminEmail } from "./admins";
 import { isAllowedEmail } from "./access";
 
 const NOT_ALLOWED = "No tienes acceso a esta Mesa de Control. Pídele a un admin que te agregue.";
+
+// Guarda un evento en la bitácora (auditoría/historial). Se llama al marcar y al
+// liberar. `reason` explica cómo se liberó (manual, limpieza, o por rama).
+async function logEvent(
+  ctx: MutationCtx,
+  action: "claim" | "release",
+  lock: Pick<Doc<"fileLocks">, "filePath" | "branch" | "userId" | "userName" | "note">,
+  reason?: "manual" | "stale" | "branch",
+) {
+  await ctx.db.insert("lockEvents", {
+    action,
+    filePath: lock.filePath,
+    branch: lock.branch,
+    userId: lock.userId,
+    userName: lock.userName,
+    note: lock.note,
+    reason,
+  });
+}
 
 // Paleta para asignar un color estable a cada persona.
 const PALETTE = [
@@ -59,7 +79,7 @@ export const claim = mutation({
       return existing._id;
     }
 
-    return await ctx.db.insert("fileLocks", {
+    const id = await ctx.db.insert("fileLocks", {
       filePath: trimmedPath,
       branch,
       userId,
@@ -67,6 +87,14 @@ export const claim = mutation({
       color,
       note: cleanNote,
     });
+    await logEvent(ctx, "claim", {
+      filePath: trimmedPath,
+      branch,
+      userId,
+      userName,
+      note: cleanNote,
+    });
+    return id;
   },
 });
 
@@ -87,5 +115,71 @@ export const release = mutation({
       throw new Error("Solo puedes liberar los archivos que tú marcaste.");
     }
     await ctx.db.delete(id);
+    await logEvent(ctx, "release", lock, "manual");
+  },
+});
+
+// Libera de golpe todos los locks de una rama. Cualquiera puede soltar los
+// suyos; un admin puede vaciar la rama entera (útil cuando ya se hizo el merge).
+export const releaseBranch = mutation({
+  args: { branch: v.string() },
+  handler: async (ctx, { branch }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Tienes que iniciar sesión.");
+
+    const me = await ctx.db.get(userId);
+    if (!isAllowedEmail(me?.email)) throw new Error(NOT_ALLOWED);
+    const admin = isAdminEmail(me?.email);
+
+    const locks = await ctx.db
+      .query("fileLocks")
+      .collect();
+    let n = 0;
+    for (const lock of locks) {
+      if (lock.branch !== branch) continue;
+      if (lock.userId !== userId && !admin) continue;
+      await ctx.db.delete(lock._id);
+      await logEvent(ctx, "release", lock, "branch");
+      n++;
+    }
+    return n;
+  },
+});
+
+// Solo admins: limpia los locks "huérfanos" (más viejos que `olderThanHours`).
+// Es la versión de un clic de lo que antes había que soltar uno por uno.
+export const releaseStale = mutation({
+  args: { olderThanHours: v.number() },
+  handler: async (ctx, { olderThanHours }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Tienes que iniciar sesión.");
+
+    const me = await ctx.db.get(userId);
+    if (!isAdminEmail(me?.email)) {
+      throw new Error("Solo un admin puede limpiar huérfanos.");
+    }
+
+    const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
+    const locks = await ctx.db.query("fileLocks").collect();
+    let n = 0;
+    for (const lock of locks) {
+      if (lock._creationTime >= cutoff) continue;
+      await ctx.db.delete(lock._id);
+      await logEvent(ctx, "release", lock, "stale");
+      n++;
+    }
+    return n;
+  },
+});
+
+// Historial reciente para el panel de actividad. Acotado a 30 eventos.
+export const recentEvents = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const me = await ctx.db.get(userId);
+    if (!isAllowedEmail(me?.email)) return [];
+    return await ctx.db.query("lockEvents").order("desc").take(30);
   },
 });

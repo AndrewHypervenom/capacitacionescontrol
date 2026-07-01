@@ -13,10 +13,13 @@ export function Board() {
   const locks = useQuery(api.fileLocks.list);
   const me = useQuery(api.users.viewer);
   const release = useMutation(api.fileLocks.release);
+  const releaseBranch = useMutation(api.fileLocks.releaseBranch);
+  const releaseStale = useMutation(api.fileLocks.releaseStale);
   const toast = useToast();
 
   const [search, setSearch] = useState("");
   const [onlyMine, setOnlyMine] = useState(false);
+  const [branch, setBranch] = useState("all");
 
   const doRelease = async (id: Id<"fileLocks">) => {
     try {
@@ -27,13 +30,41 @@ export function Board() {
     }
   };
 
+  const doReleaseBranch = async (b: string) => {
+    if (!confirm(`¿Liberar todos los archivos marcados en la rama "${b}"?`)) return;
+    try {
+      const n = await releaseBranch({ branch: b });
+      toast(n > 0 ? `Liberados ${n} de la rama ${b} 👋` : "No había nada que liberar");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo liberar", "err");
+    }
+  };
+
+  const doCleanStale = async () => {
+    if (!confirm(`¿Liberar los locks más viejos que ${STALE_HOURS} h (huérfanos)?`)) return;
+    try {
+      const n = await releaseStale({ olderThanHours: STALE_HOURS });
+      toast(n > 0 ? `Limpiados ${n} huérfanos 🧹` : "No hay huérfanos que limpiar");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo limpiar", "err");
+    }
+  };
+
   const total = locks?.length ?? 0;
   const q = search.trim().toLowerCase();
+  const branchOptions = [...new Set((locks ?? []).map((l) => l.branch))].sort();
 
   let entries = locks ? [...groupByFile(locks).entries()] : [];
   if (q) entries = entries.filter(([f]) => f.toLowerCase().includes(q));
   if (onlyMine && me)
     entries = entries.filter(([, rows]) => rows.some((r) => r.userId === me._id));
+  if (branch !== "all")
+    entries = entries
+      .map(([f, rows]): [string, typeof rows] => [
+        f,
+        rows.filter((r) => r.branch === branch),
+      ])
+      .filter(([, rows]) => rows.length > 0);
 
   // Conflictivos primero.
   entries.sort((a, b) => (isConflict(b[1]) ? 1 : 0) - (isConflict(a[1]) ? 1 : 0));
@@ -47,13 +78,26 @@ export function Board() {
             {total}
           </span>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filtrar tablero…"
             className="rounded-lg border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
           />
+          <select
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-800 text-slate-100 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+            title="Filtrar por rama"
+          >
+            <option value="all">Todas las ramas</option>
+            {branchOptions.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
           <label className="flex items-center gap-1.5 text-sm text-slate-300 select-none cursor-pointer">
             <input
               type="checkbox"
@@ -63,6 +107,24 @@ export function Board() {
             />
             Solo míos
           </label>
+          {branch !== "all" && (
+            <button
+              onClick={() => void doReleaseBranch(branch)}
+              className="text-xs font-semibold text-rose-400 hover:text-rose-300 border border-rose-800 hover:bg-rose-950/40 rounded-lg px-2.5 py-1.5"
+              title={`Liberar todo lo marcado en ${branch}`}
+            >
+              Liberar rama {branch}
+            </button>
+          )}
+          {me?.isAdmin && (
+            <button
+              onClick={() => void doCleanStale()}
+              className="text-xs font-semibold text-amber-300 hover:text-amber-200 border border-amber-800 hover:bg-amber-950/40 rounded-lg px-2.5 py-1.5"
+              title={`Liberar locks más viejos que ${STALE_HOURS} h`}
+            >
+              🧹 Limpiar huérfanos
+            </button>
+          )}
         </div>
       </div>
 

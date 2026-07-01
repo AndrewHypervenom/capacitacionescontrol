@@ -8,7 +8,10 @@ import { Board } from "./components/Board";
 import { GitConflicts } from "./components/GitConflicts";
 import { AdminUsers } from "./components/AdminUsers";
 import { MergeGuide } from "./components/MergeGuide";
+import { OnlineNow } from "./components/OnlineNow";
+import { History } from "./components/History";
 import { useCollisionAlerts } from "./lib/notify";
+import { usePresenceHeartbeat } from "./lib/presence";
 import { GITHUB_OWNER, GITHUB_REPO } from "./lib/config";
 
 export default function App() {
@@ -38,6 +41,7 @@ export default function App() {
 function AuthedApp() {
   const me = useQuery(api.users.viewer);
   useCollisionAlerts();
+  usePresenceHeartbeat();
 
   if (me === undefined) {
     return (
@@ -53,10 +57,12 @@ function AuthedApp() {
 
   return (
     <main className="max-w-6xl mx-auto px-5 py-8 space-y-8">
+      <OnlineNow />
       <Alerts />
       <ClaimForm />
       <Board />
       <GitConflicts />
+      <History />
       <AdminUsers />
       <MergeGuide />
       <footer className="text-center text-xs text-slate-400 pt-4 pb-10">

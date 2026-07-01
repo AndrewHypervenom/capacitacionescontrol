@@ -8,9 +8,13 @@
  * @module
  */
 
+import type * as access from "../access.js";
+import type * as admins from "../admins.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as fileLocks from "../fileLocks.js";
 import type * as http from "../http.js";
+import type * as presence from "../presence.js";
 import type * as users from "../users.js";
 
 import type {
@@ -20,9 +24,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
+  admins: typeof admins;
   auth: typeof auth;
+  crons: typeof crons;
   fileLocks: typeof fileLocks;
   http: typeof http;
+  presence: typeof presence;
   users: typeof users;
 }>;
 
