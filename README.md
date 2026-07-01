@@ -11,6 +11,12 @@ el sitio muestra una **alerta roja** y explica qué hacer para que el merge no s
 - **Con login de GitHub.** Nombre y avatar reales, sin escribir tu nombre a mano.
 - **En tiempo real.** Lo que marca uno, los demás lo ven al instante (reactividad de Convex).
 - **Datos en Convex.**
+- **Detección real de conflictos.** Compara las ramas en GitHub y avisa qué archivos
+  chocarán al unir, los haya marcado alguien o no.
+- **Notificaciones de choque.** Toast + notificación del navegador cuando alguien pisa
+  un archivo que tú tienes marcado.
+- **Modo oscuro** y **control de acceso** por lista blanca (ver más abajo).
+- **Admins** que limpian locks huérfanos y ven el correo de cada usuario.
 
 ## Stack
 
@@ -150,7 +156,40 @@ Por defecto vigila `AndrewHypervenom/capacitaciones` con ramas `main, isa, paola
 VITE_GITHUB_OWNER=otro-owner
 VITE_GITHUB_REPO=otro-repo
 VITE_BRANCHES=main,dev,feature
+VITE_STALE_HOURS=24        # a las cuántas horas un lock se marca como "¿olvidado?" (def. 24)
 ```
+
+## Administradores (limpiar locks huérfanos)
+
+Normalmente cada persona solo puede liberar **sus** archivos. Si alguien marca
+un archivo y se olvida de liberarlo, un **admin** puede liberarlo por él.
+
+Los admins se definen por correo en el deployment de Convex (no en el código):
+
+```powershell
+npx convex env set ADMIN_EMAILS "tu@correo.com,isa@correo.com"
+```
+
+Un admin ve el botón **“Liberar (admin)”** en las tarjetas de cualquier persona,
+y un panel **“Usuarios registrados”** con el correo de cada quien (útil para armar
+las listas). Los locks con más de `VITE_STALE_HOURS` horas se resaltan con
+**⏳ ¿olvidado?**.
+
+## Control de acceso (solo el equipo)
+
+Por defecto entra **cualquiera con cuenta de GitHub**. Para restringirlo a tu
+equipo, define la lista blanca de correos en el deployment de Convex:
+
+```powershell
+npx convex env set ALLOWED_EMAILS "pachonandres721@gmail.com,isa@correo.com,pao@correo.com"
+```
+
+- Si **no** defines `ALLOWED_EMAILS`, el sitio queda abierto (no te bloqueas sin querer).
+- Si la defines, quien no esté en la lista inicia sesión pero ve **“Acceso restringido”**.
+- Los admins (`ADMIN_EMAILS`) siempre tienen acceso, aunque no estén en la lista blanca.
+
+¿No sabes los correos de tu equipo? Que inicien sesión una vez y míralos en el
+panel **“Usuarios registrados”** (o en el dashboard de Convex → Data → `users`).
 
 ## Versión anterior (Supabase)
 

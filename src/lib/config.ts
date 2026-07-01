@@ -14,3 +14,8 @@ export const BRANCHES: string[] = (
   .split(",")
   .map((b) => b.trim())
   .filter(Boolean);
+
+// A partir de cuántas horas un lock se considera "viejo" (posiblemente olvidado).
+// Se resalta en el tablero para que alguien lo revise o lo libere.
+export const STALE_HOURS: number =
+  Number(env.VITE_STALE_HOURS) > 0 ? Number(env.VITE_STALE_HOURS) : 24;

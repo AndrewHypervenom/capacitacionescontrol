@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { isAdminEmail } from "./admins";
+import { isAllowedEmail } from "./access";
+
+const NOT_ALLOWED = "No tienes acceso a esta Mesa de Control. Pídele a un admin que te agregue.";
 
 // Paleta para asignar un color estable a cada persona.
 const PALETTE = [
@@ -38,6 +42,7 @@ export const claim = mutation({
     if (!trimmedPath) throw new Error("Falta la ruta del archivo.");
 
     const user = await ctx.db.get(userId);
+    if (!isAllowedEmail(user?.email)) throw new Error(NOT_ALLOWED);
     const userName = user?.name ?? user?.email ?? "Anónimo";
     const color = colorFor(userName);
     const cleanNote = note?.trim() ? note.trim() : undefined;
@@ -65,16 +70,20 @@ export const claim = mutation({
   },
 });
 
-// Libera un archivo. Solo puedes liberar tus propios locks.
+// Libera un archivo. Puedes liberar tus propios locks; los admins pueden
+// liberar cualquiera (para limpiar los huérfanos que alguien olvidó liberar).
 export const release = mutation({
   args: { id: v.id("fileLocks") },
   handler: async (ctx, { id }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Tienes que iniciar sesión.");
 
+    const me = await ctx.db.get(userId);
+    if (!isAllowedEmail(me?.email)) throw new Error(NOT_ALLOWED);
+
     const lock = await ctx.db.get(id);
     if (!lock) return;
-    if (lock.userId !== userId) {
+    if (lock.userId !== userId && !isAdminEmail(me?.email)) {
       throw new Error("Solo puedes liberar los archivos que tú marcaste.");
     }
     await ctx.db.delete(id);

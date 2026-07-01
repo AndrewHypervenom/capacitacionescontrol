@@ -52,3 +52,74 @@ export function useRepoFiles(): RepoFilesState {
 
   return { files, loaded, hint };
 }
+
+// --- Detección REAL de conflictos (no depende de que alguien marque a mano) ---
+
+export interface RealConflict {
+  file: string;
+  branches: string[]; // ramas (además de la base) que tocaron ese archivo
+}
+
+export interface BranchConflictsState {
+  conflicts: RealConflict[];
+  loading: boolean;
+  error: string | null;
+  base: string;
+}
+
+// Compara cada rama contra la base (la primera de BRANCHES, normalmente `main`)
+// usando la API `compare` de GitHub y detecta los archivos que cambiaron en
+// 2+ ramas: esos son los que darán conflicto real al unir. No hace falta que
+// nadie los haya marcado en la Mesa de Control.
+export function useBranchConflicts(): BranchConflictsState {
+  const base = BRANCHES[0] ?? "main";
+  const [state, setState] = useState<BranchConflictsState>({
+    conflicts: [],
+    loading: true,
+    error: null,
+    base,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const heads = BRANCHES.slice(1);
+
+    (async () => {
+      const byFile = new Map<string, Set<string>>();
+      let error: string | null = null;
+
+      for (const head of heads) {
+        try {
+          const r = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/compare/${base}...${head}`,
+          );
+          if (!r.ok) {
+            if (r.status === 403) error = "Límite de la API de GitHub alcanzado. Intenta más tarde.";
+            continue;
+          }
+          const data = await r.json();
+          for (const f of (data.files ?? []) as { filename: string }[]) {
+            if (!byFile.has(f.filename)) byFile.set(f.filename, new Set());
+            byFile.get(f.filename)!.add(head);
+          }
+        } catch {
+          error = "No se pudo leer GitHub.";
+        }
+      }
+      if (cancelled) return;
+
+      const conflicts = [...byFile.entries()]
+        .filter(([, br]) => br.size >= 2)
+        .map(([file, br]) => ({ file, branches: [...br].sort() }))
+        .sort((a, b) => a.file.localeCompare(b.file));
+
+      setState({ conflicts, loading: false, error, base });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [base]);
+
+  return state;
+}

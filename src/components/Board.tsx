@@ -5,6 +5,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { groupByFile, isConflict } from "../lib/locks";
 import { initials, timeAgo } from "../lib/ui";
 import { useToast } from "../lib/toast";
+import { STALE_HOURS } from "../lib/config";
+
+const STALE_MS = STALE_HOURS * 60 * 60 * 1000;
 
 export function Board() {
   const locks = useQuery(api.fileLocks.list);
@@ -40,7 +43,7 @@ export function Board() {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <h2 className="font-bold text-lg flex items-center gap-2">
           📋 Archivos en trabajo ahora mismo
-          <span className="text-xs bg-slate-200 text-slate-600 rounded-full px-2 py-0.5">
+          <span className="text-xs bg-slate-800 text-slate-300 rounded-full px-2 py-0.5">
             {total}
           </span>
         </h2>
@@ -49,9 +52,9 @@ export function Board() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filtrar tablero…"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+            className="rounded-lg border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
           />
-          <label className="flex items-center gap-1.5 text-sm text-slate-600 select-none cursor-pointer">
+          <label className="flex items-center gap-1.5 text-sm text-slate-300 select-none cursor-pointer">
             <input
               type="checkbox"
               checked={onlyMine}
@@ -75,26 +78,28 @@ export function Board() {
             return (
               <div
                 key={file}
-                className={`bg-white rounded-xl border ${
+                className={`bg-slate-900 rounded-xl border ${
                   conflict
-                    ? "border-rose-300 ring-1 ring-rose-200"
-                    : "border-slate-200"
+                    ? "border-rose-700 ring-1 ring-rose-900"
+                    : "border-slate-800"
                 } shadow-sm p-4 fade-in`}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span title={conflict ? "Conflicto potencial" : "OK"}>
                     {conflict ? "🚨" : "✅"}
                   </span>
-                  <code className="text-sm font-semibold text-slate-700 break-all">
+                  <code className="text-sm font-semibold text-slate-200 break-all">
                     {file}
                   </code>
                   <span className="ml-auto text-xs text-slate-400">
                     {rows.length} {rows.length === 1 ? "persona" : "personas"}
                   </span>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-800">
                   {rows.map((r) => {
                     const mine = me && r.userId === me._id;
+                    const stale = Date.now() - r._creationTime > STALE_MS;
+                    const canRelease = mine || me?.isAdmin;
                     return (
                       <div
                         key={r._id}
@@ -113,9 +118,17 @@ export function Board() {
                               {mine && (
                                 <span className="text-indigo-500 text-xs">(tú)</span>
                               )}
-                              <span className="text-xs font-semibold text-violet-600 bg-violet-50 rounded px-1.5 py-0.5 ml-1">
+                              <span className="text-xs font-semibold text-violet-300 bg-violet-950/60 rounded px-1.5 py-0.5 ml-1">
                                 {r.branch}
                               </span>
+                              {stale && (
+                                <span
+                                  title={`Lleva marcado más de ${STALE_HOURS} h. ¿Sigue en uso o se olvidó liberar?`}
+                                  className="text-xs font-semibold text-amber-300 bg-amber-950/60 rounded px-1.5 py-0.5 ml-1"
+                                >
+                                  ⏳ ¿olvidado?
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-400 truncate">
                               {r.note ? `${r.note} · ` : ""}
@@ -123,12 +136,12 @@ export function Board() {
                             </div>
                           </div>
                         </div>
-                        {mine && (
+                        {canRelease && (
                           <button
                             onClick={() => void doRelease(r._id)}
-                            className="shrink-0 text-xs font-semibold text-rose-600 hover:text-rose-700 border border-rose-200 hover:bg-rose-50 rounded-lg px-2.5 py-1"
+                            className="shrink-0 text-xs font-semibold text-rose-400 hover:text-rose-300 border border-rose-800 hover:bg-rose-950/40 rounded-lg px-2.5 py-1"
                           >
-                            Liberar
+                            {mine ? "Liberar" : "Liberar (admin)"}
                           </button>
                         )}
                       </div>

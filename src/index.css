@@ -2,10 +2,12 @@
 
 :root {
   font-family: "Inter", system-ui, sans-serif;
+  color-scheme: dark;
 }
 
 body {
   font-family: "Inter", system-ui, sans-serif;
+  background: #020617; /* slate-950: evita destellos blancos al cargar */
 }
 
 .fade-in {
@@ -28,6 +30,9 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155; /* slate-700 */
   border-radius: 99px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
