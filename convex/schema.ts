@@ -29,6 +29,27 @@ export default defineSchema({
     lastSeen: v.number(), // ms epoch del último latido
   }).index("by_user", ["userId"]),
 
+  // Suscripciones "avísame cuando se libere": una persona pide que le avisen
+  // cuando cierto archivo quede libre (nadie lo tiene marcado).
+  fileSubscriptions: defineTable({
+    filePath: v.string(),
+    userId: v.id("users"),
+    userName: v.string(),
+  })
+    .index("by_file", ["filePath"])
+    .index("by_user", ["userId"])
+    .index("by_user_file", ["userId", "filePath"]),
+
+  // "Buzón" de avisos entregados dentro de la app: cuando un archivo vigilado se
+  // libera, dejamos aquí un aviso por persona. El cliente lo muestra (toast +
+  // notificación del navegador) y lo marca como visto. Funciona sin correo.
+  releaseNotices: defineTable({
+    userId: v.id("users"),
+    filePath: v.string(),
+    releasedBy: v.string(),
+    seen: v.boolean(),
+  }).index("by_user_seen", ["userId", "seen"]),
+
   // Bitácora/auditoría: cada vez que alguien marca o libera un archivo se guarda
   // un evento. Sirve para el historial y para entender "quién tocó qué y cuándo".
   lockEvents: defineTable({

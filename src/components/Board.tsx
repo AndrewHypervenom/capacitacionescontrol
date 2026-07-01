@@ -12,10 +12,29 @@ const STALE_MS = STALE_HOURS * 60 * 60 * 1000;
 export function Board() {
   const locks = useQuery(api.fileLocks.list);
   const me = useQuery(api.users.viewer);
+  const mySubs = useQuery(api.subscriptions.mine);
   const release = useMutation(api.fileLocks.release);
   const releaseBranch = useMutation(api.fileLocks.releaseBranch);
   const releaseStale = useMutation(api.fileLocks.releaseStale);
+  const subscribe = useMutation(api.subscriptions.subscribe);
+  const unsubscribe = useMutation(api.subscriptions.unsubscribe);
   const toast = useToast();
+
+  const watched = new Set(mySubs ?? []);
+
+  const toggleWatch = async (file: string) => {
+    try {
+      if (watched.has(file)) {
+        await unsubscribe({ filePath: file });
+        toast("Ya no vigilas ese archivo");
+      } else {
+        await subscribe({ filePath: file });
+        toast("Te avisaremos cuando se libere 🔔");
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo actualizar", "err");
+    }
+  };
 
   const [search, setSearch] = useState("");
   const [onlyMine, setOnlyMine] = useState(false);
@@ -153,7 +172,33 @@ export function Board() {
                   <code className="text-sm font-semibold text-slate-200 break-all">
                     {file}
                   </code>
-                  <span className="ml-auto text-xs text-slate-400">
+                  {(() => {
+                    const heldByOther = rows.some(
+                      (r) => !me || r.userId !== me._id,
+                    );
+                    if (!heldByOther) return null;
+                    const watching = watched.has(file);
+                    return (
+                      <button
+                        onClick={() => void toggleWatch(file)}
+                        className={`ml-auto shrink-0 text-xs font-semibold rounded-lg px-2 py-1 border ${
+                          watching
+                            ? "text-emerald-300 border-emerald-800 bg-emerald-950/40"
+                            : "text-slate-300 border-slate-700 hover:bg-slate-800"
+                        }`}
+                        title={
+                          watching
+                            ? "Te avisaremos cuando quede libre. Clic para dejar de vigilar."
+                            : "Recibe un aviso cuando este archivo quede libre."
+                        }
+                      >
+                        {watching ? "🔔 Vigilando" : "🔔 Avísame"}
+                      </button>
+                    );
+                  })()}
+                  <span
+                    className={`${rows.some((r) => !me || r.userId !== me._id) ? "" : "ml-auto"} text-xs text-slate-400`}
+                  >
                     {rows.length} {rows.length === 1 ? "persona" : "personas"}
                   </span>
                 </div>

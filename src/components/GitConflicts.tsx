@@ -6,7 +6,11 @@ import { useBranchConflicts } from "../lib/github";
 // Detección REAL de conflictos: compara las ramas en GitHub y muestra los
 // archivos que ya cambiaron en 2+ ramas (chocarán al unir), aunque nadie los
 // haya marcado en la Mesa de Control.
-export function GitConflicts() {
+export function GitConflicts({
+  onClaim,
+}: {
+  onClaim?: (file: string) => void;
+}) {
   const { conflicts, loading, error, base } = useBranchConflicts();
   const locks = useQuery(api.fileLocks.list);
 
@@ -16,10 +20,14 @@ export function GitConflicts() {
     <section className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6">
       <h2 className="font-bold text-lg flex items-center gap-2">
         🔍 Conflictos reales detectados en GitHub
+        <span className="text-xs font-semibold text-emerald-300 bg-emerald-950/60 rounded-full px-2 py-0.5">
+          realidad
+        </span>
       </h2>
       <p className="text-slate-400 text-sm mt-1">
-        Comparado automáticamente contra{" "}
-        <code className="bg-slate-800 px-1 rounded">{base}</code>. Estos archivos
+        A diferencia de las alertas de arriba (que salen de lo que el equipo{" "}
+        <i>marcó</i>), esto sale de <b>git</b>: comparado automáticamente contra{" "}
+        <code className="bg-slate-800 px-1 rounded">{base}</code>, estos archivos
         ya cambiaron en varias ramas y <b>chocarán al hacer el merge</b>, los haya
         marcado alguien o no.
       </p>
@@ -63,17 +71,28 @@ export function GitConflicts() {
                     ver diff ↗
                   </a>
                 </div>
-                <p className="text-xs mt-1.5">
+                <div className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
                   {claimed.has(c.file) ? (
                     <span className="text-slate-400">
                       Alguien ya lo marcó en el tablero 👍
                     </span>
                   ) : (
-                    <span className="text-amber-300">
-                      ⚠️ Nadie lo ha marcado aquí todavía — pónganse de acuerdo antes de unir.
-                    </span>
+                    <>
+                      <span className="text-amber-300">
+                        ⚠️ Nadie lo ha marcado aquí todavía — pónganse de acuerdo antes de unir.
+                      </span>
+                      {onClaim && (
+                        <button
+                          onClick={() => onClaim(c.file)}
+                          className="font-semibold text-indigo-300 hover:text-indigo-200 border border-indigo-800 hover:bg-indigo-950/40 rounded-lg px-2 py-1"
+                          title="Rellenar el formulario de arriba con este archivo"
+                        >
+                          🔒 Marcarlo yo
+                        </button>
+                      )}
+                    </>
                   )}
-                </p>
+                </div>
               </div>
             );
           })}

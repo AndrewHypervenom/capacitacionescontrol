@@ -1,197 +1,99 @@
 # 🗂️ Mesa de Control — ¿Quién trabaja en qué archivo?
 
-Sitio para **coordinar los archivos** del repo
-[`AndrewHypervenom/capacitaciones`](https://github.com/AndrewHypervenom/capacitaciones)
-y **evitar conflictos** al unir las ramas **main · isa · paola**.
+Cuando varias personas tocan el mismo repositorio a la vez, es fácil que dos
+editen **el mismo archivo** sin saberlo y al unir las ramas se arme un **conflicto**
+molesto. La **Mesa de Control** existe para evitar eso: es un tablero en vivo donde
+cada quien **avisa qué archivo va a tocar** antes de empezar, y todos ven al instante
+en qué está trabajando el resto.
 
-Cada persona **inicia sesión con GitHub** y marca el archivo que va a tocar (con su
-rama). Si dos personas marcan el mismo archivo —o el mismo archivo en ramas distintas—
-el sitio muestra una **alerta roja** y explica qué hacer para que el merge no se dañe.
-
-- **Con login de GitHub.** Nombre y avatar reales, sin escribir tu nombre a mano.
-- **En tiempo real.** Lo que marca uno, los demás lo ven al instante (reactividad de Convex).
-- **Datos en Convex.**
-- **Detección real de conflictos.** Compara las ramas en GitHub y avisa qué archivos
-  chocarán al unir, los haya marcado alguien o no.
-- **Notificaciones de choque.** Toast + notificación del navegador cuando alguien pisa
-  un archivo que tú tienes marcado.
-- **Modo oscuro** y **control de acceso** por lista blanca (ver más abajo).
-- **Admins** que limpian locks huérfanos y ven el correo de cada usuario.
-
-## Stack
-
-- **Frontend:** React + Vite + Tailwind v4.
-- **Backend / base de datos / tiempo real:** [Convex](https://convex.dev).
-- **Login:** [Convex Auth](https://labs.convex.dev/auth) con proveedor **GitHub**.
-- La lista de archivos del repo se trae en vivo de la API de GitHub.
-
-```
-site/
-├─ index.html              ← punto de entrada de Vite
-├─ src/
-│  ├─ main.tsx             ← arranque + proveedores (Convex, Auth, Toasts)
-│  ├─ App.tsx              ← muestra login o tablero según sesión
-│  ├─ components/          ← Header, SignIn, ClaimForm, Alerts, Board, MergeGuide
-│  └─ lib/                 ← config, github, ui, locks, toast
-├─ convex/
-│  ├─ schema.ts            ← tablas (fileLocks + tablas de Auth)
-│  ├─ auth.ts              ← Convex Auth con GitHub
-│  ├─ fileLocks.ts         ← list / claim / release
-│  └─ users.ts             ← usuario con sesión iniciada
-├─ legacy-supabase/        ← versión vieja con Supabase (solo referencia)
-└─ README.md
-```
+En pocas palabras: **un semáforo compartido para que el equipo no se pise** al
+coordinar las ramas **main · isa · paola**.
 
 ---
 
-## Puesta en marcha
+## ¿Para qué sirve?
 
-### 0) Requisitos
-
-- Node.js 18+ (tienes 24 ✅). Comprueba: `node -v`.
-- Una cuenta en https://convex.dev (la del dashboard que ya tienes).
-
-### 1) Instalar dependencias
-
-```powershell
-cd C:\code\site
-npm install
-```
-
-### 2) Crear/conectar el proyecto de Convex
-
-La **primera vez**, corre el asistente interactivo (abre el navegador para iniciar sesión):
-
-```powershell
-npx convex dev
-```
-
-Esto:
-- Te pide iniciar sesión en Convex y elegir/crear un proyecto.
-- Crea el archivo **`.env.local`** con `VITE_CONVEX_URL` y `CONVEX_DEPLOYMENT`.
-- Genera la carpeta **`convex/_generated`** (tipos).
-- Sube el `schema.ts` y las funciones.
-
-Déjalo corriendo (vigila cambios) o ciérralo con `Ctrl+C` cuando termine de sincronizar.
-
-### 3) Activar Convex Auth (genera las llaves)
-
-En **otra terminal** (con el paso 2 ya hecho):
-
-```powershell
-npx @convex-dev/auth
-```
-
-Sigue el asistente. Configura en tu deployment las variables internas que necesita el
-login (`JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL`). Cuando pregunte por `SITE_URL` en
-desarrollo, usa:
-
-```
-http://localhost:5173
-```
-
-### 4) Crear la OAuth App en GitHub
-
-1. Ve a GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
-   (atajo: https://github.com/settings/developers).
-2. Rellena:
-   - **Application name:** `Mesa de Control` (lo que quieras).
-   - **Homepage URL:** `http://localhost:5173`
-   - **Authorization callback URL:**
-     ```
-     https://TU-DEPLOYMENT.convex.site/api/auth/callback/github
-     ```
-     ⚠️ Ojo: termina en **`.convex.site`** (no `.convex.cloud`). El nombre del
-     deployment lo ves en `.env.local` (`VITE_CONVEX_URL`); reemplaza `.convex.cloud`
-     por `.convex.site` y agrega `/api/auth/callback/github`.
-3. **Register application** → copia el **Client ID** y genera un **Client secret**.
-
-### 5) Darle a Convex las credenciales de GitHub
-
-```powershell
-npx convex env set AUTH_GITHUB_ID TU_CLIENT_ID
-npx convex env set AUTH_GITHUB_SECRET TU_CLIENT_SECRET
-```
-
-(También puedes ponerlas en el dashboard: **Settings → Environment Variables**.)
-
-### 6) Arrancar el sitio
-
-```powershell
-npm run dev
-```
-
-Levanta el frontend (Vite) y el backend de Convex en paralelo. Abre
-**http://localhost:5173**, pulsa **“Entrar con GitHub”** y listo.
+- **Saber quién está tocando qué**, en tiempo real, sin preguntar por WhatsApp.
+- **Prevenir conflictos** antes de que ocurran: si dos personas van por el mismo
+  archivo, el sitio lo advierte al momento.
+- **Ver el estado real del merge** en GitHub sin abrir la terminal.
+- **Ponerse de acuerdo** con reglas claras de quién edita primero.
 
 ---
 
-## Cómo se usa
+## Qué puedes hacer en el sitio
 
-1. **Inicia sesión** con GitHub.
-2. Elige tu **rama** y busca el **archivo** que vas a tocar → **🔒 Marcar archivo**.
-3. Mira el tablero:
-   - ✅ verde = solo tú trabajas ese archivo, todo bien.
-   - 🚨 rojo = alguien más lo trabaja (o en otra rama) → riesgo de conflicto.
-4. Al terminar y hacer push, pulsa **Liberar** en tu tarjeta (solo puedes liberar los tuyos).
+### Marcar un archivo
+Eliges tu rama y el archivo que vas a tocar, y lo "marcas". Desde ese momento
+aparece en el tablero con tu nombre y avatar de GitHub, para que nadie más lo toque
+a ciegas. Al terminar, lo **liberas** con un clic.
 
-## Desplegar gratis (opcional)
+### Ver el tablero en vivo
+Lista de todos los archivos que el equipo está trabajando ahora mismo:
+- ✅ **verde** = solo una persona lo tiene, todo tranquilo.
+- 🚨 **rojo** = dos o más personas (o dos ramas) van por el mismo archivo → riesgo de
+  choque. Lo que marca uno, los demás lo ven al instante.
 
-```powershell
-npm run deploy        # sube las funciones a Convex y compila el frontend (carpeta dist/)
-```
+Puedes filtrar por texto, por rama, o ver solo los tuyos.
 
-Sube `dist/` a **Netlify**, **Vercel** o **GitHub Pages**. Recuerda:
+### Alertas de choque *(intención)*
+Si alguien marca un archivo que tú ya tienes —o el mismo archivo en otra rama—
+salta una **alerta roja** que explica qué hacer para que el merge no se dañe.
+Además recibes un **aviso en pantalla y una notificación del navegador**, aunque
+estés en otra pestaña.
 
-- En el hosting, define `VITE_CONVEX_URL` con la URL de tu deployment **de producción**.
-- En GitHub, agrega (o cambia) la **Authorization callback URL** a la del dominio de
-  producción y actualiza `SITE_URL` en Convex (`npx convex env set SITE_URL https://tu-sitio`).
+### Conflictos reales *(realidad)*
+La Mesa también **compara las ramas directamente en GitHub** y te dice qué archivos
+**van a chocar de verdad** al unir, los haya marcado alguien o no. Si detecta uno que
+nadie reservó, con el botón **🔒 Marcarlo yo** lo reservas al instante.
 
-## Configuración del repo a vigilar
+> La diferencia: las *Alertas* salen de lo que el equipo **dijo** que iba a tocar;
+> los *Conflictos reales* salen de lo que **git ya ve** cambiado en varias ramas.
 
-Por defecto vigila `AndrewHypervenom/capacitaciones` con ramas `main, isa, paola`
-(ver `src/lib/config.ts`). Para cambiarlo sin tocar código, añade a `.env.local`:
+### Pull Requests abiertos
+Muestra los PRs abiertos del repositorio con su estado de fusión — **✅ se puede unir**,
+**⚠️ con conflictos**, **borrador** — y enlaces directos a GitHub. Así ves el momento
+real del merge sin salir de la Mesa.
 
-```
-VITE_GITHUB_OWNER=otro-owner
-VITE_GITHUB_REPO=otro-repo
-VITE_BRANCHES=main,dev,feature
-VITE_STALE_HOURS=24        # a las cuántas horas un lock se marca como "¿olvidado?" (def. 24)
-```
+### "Avísame cuando se libere" 🔔
+¿Necesitas un archivo que otra persona tiene marcado? Pulsa **🔔 Avísame** y, en cuanto
+quede libre, recibes un aviso en la app y una notificación del navegador. Sin tener
+que estar revisando.
 
-## Administradores (limpiar locks huérfanos)
+### Quién está en línea
+Una barra muestra los **avatares de quienes tienen la Mesa abierta** en este momento.
 
-Normalmente cada persona solo puede liberar **sus** archivos. Si alguien marca
-un archivo y se olvida de liberarlo, un **admin** puede liberarlo por él.
+### Historial
+Una bitácora de los últimos movimientos: quién marcó o liberó qué archivo y cuándo.
 
-Los admins se definen por correo en el deployment de Convex (no en el código):
+### Guía de merge
+Un recordatorio siempre a la vista de los pasos para unir las ramas sin romper nada
+(orden sugerido: `main → isa → paola`, hacer `git pull` antes de empezar, etc.).
 
-```powershell
-npx convex env set ADMIN_EMAILS "tu@correo.com,isa@correo.com"
-```
+---
 
-Un admin ve el botón **“Liberar (admin)”** en las tarjetas de cualquier persona,
-y un panel **“Usuarios registrados”** con el correo de cada quien (útil para armar
-las listas). Los locks con más de `VITE_STALE_HOURS` horas se resaltan con
-**⏳ ¿olvidado?**.
+## Cómo se usa (el día a día)
 
-## Control de acceso (solo el equipo)
+1. **Entra con tu cuenta de GitHub** (tu nombre y avatar reales, sin escribir nada).
+2. **Marca** la rama y el archivo que vas a tocar → **🔒 Marcar archivo**.
+3. Trabaja tranquilo mirando el tablero: si aparece una alerta roja, **ponte de
+   acuerdo** con la otra persona sobre quién edita primero.
+4. Al terminar y hacer push, pulsa **Liberar** en tu tarjeta.
 
-Por defecto entra **cualquiera con cuenta de GitHub**. Para restringirlo a tu
-equipo, define la lista blanca de correos en el deployment de Convex:
+Eso es todo. La idea es que en 5 segundos avises al equipo y evites horas de arreglar
+conflictos.
 
-```powershell
-npx convex env set ALLOWED_EMAILS "pachonandres721@gmail.com,isa@correo.com,pao@correo.com"
-```
+---
 
-- Si **no** defines `ALLOWED_EMAILS`, el sitio queda abierto (no te bloqueas sin querer).
-- Si la defines, quien no esté en la lista inicia sesión pero ve **“Acceso restringido”**.
-- Los admins (`ADMIN_EMAILS`) siempre tienen acceso, aunque no estén en la lista blanca.
+## Cosas que conviene saber
 
-¿No sabes los correos de tu equipo? Que inicien sesión una vez y míralos en el
-panel **“Usuarios registrados”** (o en el dashboard de Convex → Data → `users`).
+- **Solo el equipo.** El acceso puede limitarse a una lista de correos, para que solo
+  entren las personas autorizadas.
+- **Admins.** Si alguien marca un archivo y olvida liberarlo, un administrador puede
+  liberarlo por él y limpiar de golpe los archivos "olvidados".
+- **Modo oscuro** de fábrica.
 
-## Versión anterior (Supabase)
+---
 
-La implementación original sin login y con Supabase quedó en `legacy-supabase/`
-como referencia. Ya no se usa.
+*La versión original con Supabase quedó en `legacy-supabase/` solo como referencia; ya
+no se usa.*

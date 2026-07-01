@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, type MutationCtx } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { isAdminEmail } from "./admins";
 import { isAllowedEmail } from "./access";
@@ -24,6 +24,38 @@ async function logEvent(
     note: lock.note,
     reason,
   });
+}
+
+// Tras liberar un lock, si el archivo ya NO lo tiene nadie más marcado, avisa a
+// quienes lo estaban vigilando: deja un aviso dentro de la app (buzón) que el
+// cliente muestra. Las suscripciones son de un solo uso.
+async function notifyIfFree(
+  ctx: MutationCtx,
+  filePath: string,
+  releaserId: Id<"users">,
+  releaserName: string,
+) {
+  const stillLocked = await ctx.db
+    .query("fileLocks")
+    .withIndex("by_file", (q) => q.eq("filePath", filePath))
+    .first();
+  if (stillLocked) return; // sigue ocupado por alguien más
+
+  const subs = await ctx.db
+    .query("fileSubscriptions")
+    .withIndex("by_file", (q) => q.eq("filePath", filePath))
+    .collect();
+
+  for (const s of subs) {
+    await ctx.db.delete(s._id); // aviso de un solo uso
+    if (s.userId === releaserId) continue; // no te avises a ti mismo
+    await ctx.db.insert("releaseNotices", {
+      userId: s.userId,
+      filePath,
+      releasedBy: releaserName,
+      seen: false,
+    });
+  }
 }
 
 // Paleta para asignar un color estable a cada persona.
@@ -116,6 +148,12 @@ export const release = mutation({
     }
     await ctx.db.delete(id);
     await logEvent(ctx, "release", lock, "manual");
+    await notifyIfFree(
+      ctx,
+      lock.filePath,
+      userId,
+      me?.name ?? me?.email ?? "Alguien",
+    );
   },
 });
 
@@ -130,6 +168,7 @@ export const releaseBranch = mutation({
     const me = await ctx.db.get(userId);
     if (!isAllowedEmail(me?.email)) throw new Error(NOT_ALLOWED);
     const admin = isAdminEmail(me?.email);
+    const releaserName = me?.name ?? me?.email ?? "Alguien";
 
     const locks = await ctx.db
       .query("fileLocks")
@@ -140,6 +179,7 @@ export const releaseBranch = mutation({
       if (lock.userId !== userId && !admin) continue;
       await ctx.db.delete(lock._id);
       await logEvent(ctx, "release", lock, "branch");
+      await notifyIfFree(ctx, lock.filePath, userId, releaserName);
       n++;
     }
     return n;
@@ -158,6 +198,7 @@ export const releaseStale = mutation({
     if (!isAdminEmail(me?.email)) {
       throw new Error("Solo un admin puede limpiar huérfanos.");
     }
+    const releaserName = me?.name ?? me?.email ?? "Alguien";
 
     const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
     const locks = await ctx.db.query("fileLocks").collect();
@@ -166,6 +207,7 @@ export const releaseStale = mutation({
       if (lock._creationTime >= cutoff) continue;
       await ctx.db.delete(lock._id);
       await logEvent(ctx, "release", lock, "stale");
+      await notifyIfFree(ctx, lock.filePath, userId, releaserName);
       n++;
     }
     return n;

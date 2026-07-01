@@ -15,6 +15,7 @@ import type * as crons from "../crons.js";
 import type * as fileLocks from "../fileLocks.js";
 import type * as http from "../http.js";
 import type * as presence from "../presence.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   fileLocks: typeof fileLocks;
   http: typeof http;
   presence: typeof presence;
+  subscriptions: typeof subscriptions;
   users: typeof users;
 }>;
 

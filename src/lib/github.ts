@@ -67,6 +67,104 @@ export function useRepoFiles(): RepoFilesState {
   return { files, loaded, hint };
 }
 
+// --- Pull Requests abiertos (estado real del merge en GitHub) ---
+
+export interface PullRequest {
+  number: number;
+  title: string;
+  author: string;
+  base: string; // rama destino
+  head: string; // rama origen
+  url: string;
+  draft: boolean;
+  mergeable: boolean | null; // null = GitHub aún lo está calculando
+}
+
+export interface PullRequestsState {
+  prs: PullRequest[];
+  loading: boolean;
+  error: string | null;
+}
+
+// Lista los PRs abiertos y, para cada uno, consulta su detalle para saber si
+// GitHub lo considera fusionable (`mergeable`) — la lista no trae ese dato.
+export function usePullRequests(): PullRequestsState {
+  const [state, setState] = useState<PullRequestsState>({
+    prs: [],
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const r = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/pulls?state=open&per_page=100`,
+          { headers: ghHeaders() },
+        );
+        if (!r.ok) {
+          const error =
+            r.status === 403 || r.status === 429
+              ? GITHUB_TOKEN
+                ? "Límite de la API de GitHub alcanzado. Intenta más tarde."
+                : "Límite de la API pública de GitHub. Configura VITE_GITHUB_TOKEN para subirlo a 5.000/h."
+              : `No se pudieron leer los PRs (HTTP ${r.status}).`;
+          if (!cancelled) setState({ prs: [], loading: false, error });
+          return;
+        }
+        const list = (await r.json()) as Array<{
+          number: number;
+          title: string;
+          user: { login: string } | null;
+          base: { ref: string };
+          head: { ref: string };
+          html_url: string;
+          draft: boolean;
+        }>;
+
+        // Detalle en paralelo para conocer `mergeable` de cada PR.
+        const detailed = await Promise.all(
+          list.map(async (p): Promise<PullRequest> => {
+            let mergeable: boolean | null = null;
+            try {
+              const d = await fetch(
+                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/pulls/${p.number}`,
+                { headers: ghHeaders() },
+              );
+              if (d.ok) mergeable = ((await d.json()).mergeable ?? null) as boolean | null;
+            } catch {
+              /* deja mergeable en null si falla */
+            }
+            return {
+              number: p.number,
+              title: p.title,
+              author: p.user?.login ?? "desconocido",
+              base: p.base.ref,
+              head: p.head.ref,
+              url: p.html_url,
+              draft: p.draft,
+              mergeable,
+            };
+          }),
+        );
+
+        if (!cancelled) setState({ prs: detailed, loading: false, error: null });
+      } catch {
+        if (!cancelled)
+          setState({ prs: [], loading: false, error: "No se pudo leer GitHub." });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+}
+
 // --- Detección REAL de conflictos (no depende de que alguien marque a mano) ---
 
 export interface RealConflict {

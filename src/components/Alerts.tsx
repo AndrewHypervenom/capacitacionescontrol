@@ -19,6 +19,11 @@ export function Alerts() {
 
   return (
     <section className="space-y-3">
+      <p className="text-xs text-slate-400">
+        Basado en lo que el equipo <b>marcó</b> en la Mesa (intención). Los
+        conflictos que git ya ve de verdad salen más abajo, en “Conflictos
+        reales”.
+      </p>
       {alerts.map((a) => (
         <div
           key={a.file}

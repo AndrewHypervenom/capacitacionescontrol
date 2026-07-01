@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Authenticated, Unauthenticated, AuthLoading, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Header } from "./components/Header";
@@ -6,11 +7,12 @@ import { ClaimForm } from "./components/ClaimForm";
 import { Alerts } from "./components/Alerts";
 import { Board } from "./components/Board";
 import { GitConflicts } from "./components/GitConflicts";
+import { PullRequests } from "./components/PullRequests";
 import { AdminUsers } from "./components/AdminUsers";
 import { MergeGuide } from "./components/MergeGuide";
 import { OnlineNow } from "./components/OnlineNow";
 import { History } from "./components/History";
-import { useCollisionAlerts } from "./lib/notify";
+import { useCollisionAlerts, useReleaseNotices } from "./lib/notify";
 import { usePresenceHeartbeat } from "./lib/presence";
 import { GITHUB_OWNER, GITHUB_REPO } from "./lib/config";
 
@@ -40,7 +42,13 @@ export default function App() {
 // pantalla de "sin acceso" en vez del tablero.
 function AuthedApp() {
   const me = useQuery(api.users.viewer);
+  // Objetivo para prellenar el formulario desde "Marcarlo yo" (conflictos).
+  const [claimTarget, setClaimTarget] = useState<{
+    file: string;
+    nonce: number;
+  } | null>(null);
   useCollisionAlerts();
+  useReleaseNotices();
   usePresenceHeartbeat();
 
   if (me === undefined) {
@@ -59,9 +67,12 @@ function AuthedApp() {
     <main className="max-w-6xl mx-auto px-5 py-8 space-y-8">
       <OnlineNow />
       <Alerts />
-      <ClaimForm />
+      <ClaimForm target={claimTarget} />
       <Board />
-      <GitConflicts />
+      <GitConflicts
+        onClaim={(file) => setClaimTarget({ file, nonce: Date.now() })}
+      />
+      <PullRequests />
       <History />
       <AdminUsers />
       <MergeGuide />

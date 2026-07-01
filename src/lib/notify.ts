@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { groupByFile, isConflict } from "./locks";
 import { useToast } from "./toast";
@@ -56,4 +56,31 @@ export function useCollisionAlerts() {
 
     known.current = mineInConflict;
   }, [locks, me, toast]);
+}
+
+// Muestra el aviso "se liberó el archivo que vigilabas": lee el buzón de avisos
+// (releaseNotices) que el servidor deja al liberar un archivo suscrito, lanza un
+// toast + notificación del navegador, y los marca como vistos para no repetir.
+export function useReleaseNotices() {
+  const notices = useQuery(api.subscriptions.myNotices);
+  const dismiss = useMutation(api.subscriptions.dismissNotices);
+  const toast = useToast();
+
+  useEffect(() => {
+    if (!notices || notices.length === 0) return;
+
+    for (const n of notices) {
+      toast(`✅ Se liberó ${n.filePath} — ya puedes trabajarlo`);
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        new Notification("Mesa de Control — archivo libre", {
+          body: `${n.filePath}: ${n.releasedBy} lo liberó. Ya puedes trabajarlo.`,
+        });
+      }
+    }
+
+    void dismiss({ ids: notices.map((n) => n._id) });
+  }, [notices, dismiss, toast]);
 }

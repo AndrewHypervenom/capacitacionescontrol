@@ -5,7 +5,14 @@ import { BRANCHES } from "../lib/config";
 import { useRepoFiles } from "../lib/github";
 import { useToast } from "../lib/toast";
 
-export function ClaimForm() {
+// `target` permite rellenar el formulario desde fuera (p. ej. al pulsar
+// "Marcarlo yo" en un conflicto detectado). El `nonce` fuerza el efecto aunque
+// se pida el mismo archivo dos veces seguidas.
+export function ClaimForm({
+  target,
+}: {
+  target?: { file: string; nonce: number } | null;
+}) {
   const claim = useMutation(api.fileLocks.claim);
   const toast = useToast();
   const { files, hint } = useRepoFiles();
@@ -16,6 +23,16 @@ export function ClaimForm() {
   const [showList, setShowList] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Rellena la ruta y desplaza/enfoca el formulario cuando llega un objetivo.
+  useEffect(() => {
+    if (!target) return;
+    setFile(target.file);
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    fileInputRef.current?.focus();
+  }, [target?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cierra el desplegable al hacer clic fuera.
   useEffect(() => {
@@ -52,7 +69,10 @@ export function ClaimForm() {
   };
 
   return (
-    <section className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6 fade-in">
+    <section
+      ref={sectionRef}
+      className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6 fade-in"
+    >
       <h2 className="font-bold text-lg flex items-center gap-2">
         ✍️ Marcar un archivo en el que estás trabajando
       </h2>
@@ -84,6 +104,7 @@ export function ClaimForm() {
             Archivo del repositorio
           </label>
           <input
+            ref={fileInputRef}
             value={file}
             autoComplete="off"
             placeholder="Escribe para buscar… ej: src/App.tsx"
