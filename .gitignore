@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+
+# Variables de entorno locales (NO subir)
+.env
+
+# Convex genera estos al correr `npx convex dev`
+convex/_generated
+
+# Sistema / editor
+.DS_Store
+*.local
+.vscode/*
+!.vscode/extensions.json
+
+/.claude

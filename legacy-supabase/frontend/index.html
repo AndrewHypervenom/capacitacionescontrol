@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mesa de Control — ¿Quién trabaja en qué archivo?</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗂️</text></svg>" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] } } } };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .fade-in { animation: fade .35s ease both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- ===== Encabezado ===== -->
+  <header class="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
+    <div class="max-w-6xl mx-auto px-5 py-6 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold flex items-center gap-2">🗂️ Mesa de Control</h1>
+        <p class="text-indigo-100 text-sm mt-1">Coordina los archivos del repo <span id="repoLabel" class="font-semibold underline decoration-indigo-300"></span> para unir <b>main · isa · paola</b> sin conflictos.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="connDot" class="flex items-center gap-2 text-xs bg-white/15 rounded-full px-3 py-1.5">
+          <span id="connLed" class="w-2.5 h-2.5 rounded-full bg-amber-300 animate-pulse"></span>
+          <span id="connText">Conectando…</span>
+        </div>
+        <button id="whoBtn" class="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition rounded-full pl-1.5 pr-3 py-1.5 text-sm font-semibold">
+          <span id="whoAvatar" class="w-7 h-7 rounded-full grid place-items-center text-white text-xs font-bold">?</span>
+          <span id="whoName">Identifícate</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-5 py-8 space-y-8">
+
+    <!-- ===== Aviso de configuración (si falta) ===== -->
+    <div id="setupWarn" class="hidden bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-5">
+      <h3 class="font-bold flex items-center gap-2">⚠️ Falta conectar Supabase</h3>
+      <p class="text-sm mt-1">Abre <code class="bg-amber-100 px-1 rounded">frontend/config.js</code> y pega tu <b>Project URL</b> y tu <b>clave anon</b>. Luego ejecuta <code class="bg-amber-100 px-1 rounded">backend/supabase_setup.sql</code> en Supabase. Mira el <code class="bg-amber-100 px-1 rounded">README.md</code>.</p>
+    </div>
+
+    <!-- ===== Alertas de conflicto ===== -->
+    <section id="alertsWrap" class="space-y-3"></section>
+
+    <!-- ===== Marcar un archivo ===== -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 fade-in">
+      <h2 class="font-bold text-lg flex items-center gap-2">✍️ Marcar un archivo en el que estás trabajando</h2>
+      <p class="text-slate-500 text-sm mt-1">Avisa al equipo antes de tocar un archivo. Si alguien más ya lo tiene, lo verás al instante.</p>
+
+      <div class="grid md:grid-cols-12 gap-3 mt-5">
+        <div class="md:col-span-3">
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tu rama</label>
+          <select id="branchSel" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none"></select>
+        </div>
+        <div class="md:col-span-9 relative">
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Archivo del repositorio</label>
+          <input id="fileInput" autocomplete="off" placeholder="Escribe para buscar… ej: src/App.tsx"
+                 class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none" />
+          <div id="fileList" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 overflow-auto"></div>
+          <p id="fileHint" class="text-xs text-slate-400 mt-1">Cargando lista de archivos del repo…</p>
+        </div>
+        <div class="md:col-span-9">
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Nota (opcional)</label>
+          <input id="noteInput" maxlength="140" placeholder="¿Qué vas a cambiar? ej: Arreglando el login"
+                 class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none" />
+        </div>
+        <div class="md:col-span-3 flex items-end">
+          <button id="claimBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition text-white font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            🔒 Marcar archivo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Tablero ===== -->
+    <section>
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <h2 class="font-bold text-lg flex items-center gap-2">📋 Archivos en trabajo ahora mismo
+          <span id="countBadge" class="text-xs bg-slate-200 text-slate-600 rounded-full px-2 py-0.5">0</span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <input id="searchBoard" placeholder="Filtrar tablero…" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none" />
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 select-none cursor-pointer">
+            <input id="onlyMine" type="checkbox" class="rounded" /> Solo míos
+          </label>
+        </div>
+      </div>
+      <div id="board" class="grid gap-3"></div>
+      <div id="emptyBoard" class="hidden text-center text-slate-400 py-12">
+        <div class="text-4xl">🌱</div>
+        <p class="mt-2">Nadie ha marcado archivos todavía. ¡Sé el primero!</p>
+      </div>
+    </section>
+
+    <!-- ===== Guía de merge ===== -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <h2 class="font-bold text-lg flex items-center gap-2">🧭 ¿Qué hago para que el merge no se dañe?</h2>
+      <ol class="list-decimal list-inside text-sm text-slate-600 space-y-2 mt-3">
+        <li><b>Antes de tocar un archivo</b>, márcalo aquí con tu rama. Así los demás saben que es tuyo.</li>
+        <li>Si ves una <span class="text-rose-600 font-semibold">alerta roja</span>, significa que ese archivo lo trabajan en <b>2 ramas distintas</b> → habrá conflicto al unir. Hablen y decidan quién lo edita.</li>
+        <li>Si solo <b>una persona</b> trabaja el archivo (aunque sea en otra rama), no hay problema: avisa cuando termines.</li>
+        <li>Cuando termines y hagas push, pulsa <b>“Liberar”</b> en tu tarjeta para soltar el archivo.</li>
+        <li>Orden de unión sugerido: <code class="bg-slate-100 px-1 rounded">main → isa → paola</code>. Hagan <code class="bg-slate-100 px-1 rounded">git pull origin main</code> en su rama seguido <b>antes</b> de empezar, para reducir choques.</li>
+      </ol>
+    </section>
+
+    <footer class="text-center text-xs text-slate-400 pt-4 pb-10">
+      Hecho para coordinar a Isa, Pao y el equipo · Los datos viven en Supabase · Sin login, identifícate con tu nombre.
+    </footer>
+  </main>
+
+  <!-- ===== Modal de identidad ===== -->
+  <div id="nameModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm grid place-items-center px-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 fade-in">
+      <h3 class="text-xl font-bold">👋 ¿Cómo te llamas?</h3>
+      <p class="text-slate-500 text-sm mt-1">No hay que crear cuenta. Tu nombre sirve para que el equipo sepa quién marca cada archivo.</p>
+      <input id="nameField" maxlength="30" placeholder="Ej: Isabel, Paola, Andrés…"
+             class="mt-4 w-full rounded-lg border border-slate-300 px-3 py-3 text-lg focus:ring-2 focus:ring-indigo-400 outline-none" />
+      <div id="nameError" class="hidden text-rose-600 text-sm mt-2">Escribe un nombre 🙂</div>
+      <button id="saveName" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 transition text-white font-semibold rounded-lg px-4 py-3">Entrar</button>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
